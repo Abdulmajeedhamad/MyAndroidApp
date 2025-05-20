@@ -1,5 +1,6 @@
 package com.example.stopwatchapp;
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -24,7 +25,7 @@ public class StopwatchActivity extends AppCompatActivity {
 
     // UI Components
     private TextView timerTextView;
-    private Button startButton, pauseButton, resetButton, lapButton, logoutButton, timerButton;
+    private Button startButton, pauseButton, resetButton, lapButton, logoutButton, timerButton, clearLapsButton;
     private ListView lapListView;
 
     // Firebase Components
@@ -74,6 +75,7 @@ public class StopwatchActivity extends AppCompatActivity {
         lapButton = findViewById(R.id.lapButton);
         logoutButton = findViewById(R.id.logoutButton);
         timerButton = findViewById(R.id.timerButton);
+        clearLapsButton = findViewById(R.id.clearLapsButton);
         lapListView = findViewById(R.id.lapListView);
 
         lapAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, lapList);
@@ -106,6 +108,8 @@ public class StopwatchActivity extends AppCompatActivity {
         timerButton.setOnClickListener(v -> {
             startActivity(new Intent(StopwatchActivity.this, TimerActivity.class));
         });
+
+        clearLapsButton.setOnClickListener(v -> clearLaps());
     }
 
     private void initializeUserSession() {
@@ -158,7 +162,7 @@ public class StopwatchActivity extends AppCompatActivity {
             int seconds = (int) (millis / 1000) % 60;
             int minutes = (int) ((millis / (1000 * 60)) % 60);
             int hours = (int) ((millis / (1000 * 60 * 60)) % 24);
-            int milliseconds = (int) (millis % 1000) / 10;
+            int milliseconds = (int) (millis % 1000) / 10 ;
 
             timerTextView.setText(String.format(Locale.getDefault(),
                     "%02d:%02d:%02d.%02d", hours, minutes, seconds, milliseconds));
@@ -212,11 +216,34 @@ public class StopwatchActivity extends AppCompatActivity {
                 });
     }
 
+    private void clearLaps() {
+        new AlertDialog.Builder(this)
+                .setTitle("Clear All Laps")
+                .setMessage("Are you sure you want to delete all lap records?")
+                .setPositiveButton("Yes", (dialog, which) -> {
+                    // Clear from Firebase
+                    databaseRef.child("users").child(userId).child("laps").removeValue()
+                            .addOnSuccessListener(aVoid -> {
+                                // Clear local list
+                                lapList.clear();
+                                lapAdapter.notifyDataSetChanged();
+                                Toast.makeText(this, "All laps cleared", Toast.LENGTH_SHORT).show();
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e("Firebase", "Failed to clear laps", e);
+                                Toast.makeText(this, "Failed to clear laps", Toast.LENGTH_SHORT).show();
+                            });
+                })
+                .setNegativeButton("No", null)
+                .show();
+    }
+
     private void updateButtonStates() {
         startButton.setEnabled(!isRunning);
         pauseButton.setEnabled(isRunning);
         resetButton.setEnabled(startTime != 0 || isRunning);
         lapButton.setEnabled(isRunning);
+        clearLapsButton.setEnabled(!lapList.isEmpty());
     }
 
     private void createUserRecord() {
@@ -236,6 +263,7 @@ public class StopwatchActivity extends AppCompatActivity {
         pauseButton.setEnabled(false);
         resetButton.setEnabled(false);
         lapButton.setEnabled(false);
+        clearLapsButton.setEnabled(false);
     }
 
     private void logoutUser() {
